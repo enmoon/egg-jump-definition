@@ -1,7 +1,8 @@
-# Change Log
-All notable changes to the "enmoon" extension will be documented in this file.
+## 0.0.4
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+- update rendme keybinding words misspelled
 
-## [Unreleased]
-- Initial release
+
+## 0.0.3
+
+- create egg.js jump to definition

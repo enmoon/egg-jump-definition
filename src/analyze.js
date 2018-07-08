@@ -1,6 +1,4 @@
-let fileList = [];
-const rd = require('rd');
-
+const rd = require('./rd');
 
 class Analyze {
     constructor(vscode) {

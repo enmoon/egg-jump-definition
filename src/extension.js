@@ -5,7 +5,7 @@ const analyze = new Analyze(vscode);
 
 async function activate(context) {
 
-    let disposableLbs = vscode.commands.registerCommand('extension.egg-jump-definition', async function () {
+    let disposableLbs = vscode.commands.registerCommand('extension.eggJumpDefinition', async function () {
         await analyze.lbs();
     });
 
