@@ -1,6 +1,6 @@
-# enmoon README
+# egg-jump-definition README
 
-This is the README for your extension "enmoon". After writing up a brief description, we recommend including the following sections.
+This is the README for your extension "egg-jump-definition". After writing up a brief description, we recommend including the following sections.
 
 ## Features
 
