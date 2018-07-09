@@ -160,7 +160,7 @@ class Analyze {
 
                     const text = doc.getText();
                     const name = funName.replace(/(\$)/g, '\\$');
-                    let funIndex = text.split(new RegExp('(?:[^.])\\b' + name + '\\b[^;\n]+{'))[0].length;
+                    let funIndex = text.split(new RegExp('(?:[^\\.\'\"])\\b' + name + '\\b[^;\n]+{'))[0].length;
 
                     if (funIndex === text.length) {
                         return;

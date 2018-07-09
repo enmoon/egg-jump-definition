@@ -6,7 +6,7 @@ egg.js function jump to definition
 
 ## Start
 
-* keybinding
+* Shortcurs
 
     `Cmd+4` on macOS 
      
