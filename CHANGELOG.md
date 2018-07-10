@@ -1,4 +1,8 @@
-## 0.0.4
+## 0.0.6
+
+- update analyze get function-code compute
+
+## 0.0.5
 
 - update analyze functions cannot begin with quotes
 

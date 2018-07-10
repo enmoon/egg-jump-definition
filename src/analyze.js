@@ -44,14 +44,14 @@ class Analyze {
     getPositionText() {
         let text = '';
         let lastText = '';
-        const re = /((\w|\$)+\s*\.\s*)+(\w|\$)+/g;
+        const re = /([\w\$]+\s*[\.\/]\s*)+[\w\$]+/g;
         const { character } = this.position;
-        const linStr = this.getPositionLine();
-        const lineText = linStr.replace(/\//g, '.');
+        const lineText = this.getPositionLine();
+        //const lineText = linStr.replace(/\//g, '.');
         const lineLen = lineText.split(/\n/g)[0].length;
         const length = lineLen + character;
 
-        lineText.replace(re, (word, p1, p2, p3, index) => {
+        lineText.replace(re, (word, p1, index) => {
             if (!text && index > length) {
                 text = lastText || word;
             }
@@ -68,7 +68,7 @@ class Analyze {
     getTextProps() {
         const text = this.getPositionText();
         const list = text.split('.');
-        const funName = list.pop();
+        const funName = list.length > 1 ? list.pop() : '';
         const path = list.join('/');
 
         return {
@@ -158,15 +158,20 @@ class Analyze {
                         return;
                     }
 
+                    if (!funName) {
+                        return;
+                    }
+
                     const text = doc.getText();
                     const name = funName.replace(/(\$)/g, '\\$');
-                    let funIndex = text.split(new RegExp('(?:[^\\.\'\"])\\b' + name + '\\b[^;\n]+{'))[0].length;
+                    const funReText = `\\b${name}\\b\\s*=?\\s*(async\\s*)?(function\\s+\\*?\\s*\\([^\\)]*\\)|\\([^\\)]*\\)|\\w+)(\\s*=>)?\\s*{|function\\s*\\*?\\s+${name}\\s*\\([^\\)]*\\)\\s*{`;
+                    const funIndex = text.split(new RegExp(funReText))[0].length;
 
                     if (funIndex === text.length) {
                         return;
                     }
 
-                    funIndex = funIndex + 1;
+                    //funIndex = funIndex + 1;
 
                     const nameStart = doc.positionAt(funIndex);
                     const nameEnd = doc.positionAt(funIndex + funName.length);
