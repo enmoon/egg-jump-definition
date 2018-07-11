@@ -1,3 +1,7 @@
+## 0.0.9
+
+- add function jump to node_modules
+
 ## 0.0.6
 
 - update analyze get function-code compute

@@ -14,8 +14,10 @@ vscode extensions，egg.js function jump to definition
 
 ## Example
 
-![](https://img.alicdn.com/tfs/TB1zluQDL1TBuNjy0FjXXajyXXa-800-632.gif)
+![](https://img.alicdn.com/tfs/TB166ZODuGSBuNjSspbXXciipXa-800-631.gif)
 
-![](https://img.alicdn.com/tfs/TB1WRCQDL1TBuNjy0FjXXajyXXa-800-632.gif)
 
-![](https://img.alicdn.com/tfs/TB1vCXhDL9TBuNjy1zbXXXpepXa-800-632.gif)
+![](https://img.alicdn.com/tfs/TB1IYJpDKSSBuNjy0FlXXbBpVXa-800-583.gif)
+
+
+![](https://img.alicdn.com/tfs/TB1rN8oDQ9WBuNjSspeXXaz5VXa-800-635.gif)

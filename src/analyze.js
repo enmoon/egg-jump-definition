@@ -5,6 +5,10 @@ class Analyze {
         this.vscode = vscode;
 
         this.files = this.getFiles();
+        
+        setInterval(() => {
+            this.files = this.getFiles();
+        }, 30 * 60 * 1000);
     }
 
     get document() {
@@ -23,11 +27,41 @@ class Analyze {
         return this.vscode.window.activeTextEditor.document.fileName;
     }
 
+    get rootPath() {
+        return this.filename.replace(/\/app\/.*/g, '');
+    }
+
+    isNodeModules(path) {
+        return /\bnode_modules\b/.test(path);
+    }
+
+    isPackageJson(path) {
+        return /\bpackage\.json\b/.test(path);
+    }
+
     getFiles() {
         const files = [];
         const { rootPath } = this.vscode.workspace;
 
         rd.eachFileFilterSync(`${rootPath}/app`, /\w+\.\w+$/, file => files.push(file));
+
+        return files;
+    }
+
+    getNodeModuleFiles() {
+        const files = [];
+        const list = this.filename.split('/');
+        const length = list.length;
+        let index = list.indexOf('node_modules') + 1;
+        let path, file;
+
+        do {
+            index += 1;
+            path = list.slice(0, index).join('/');
+            file = [path, '/', 'package.json'].join('');
+        } while (!rd.isFile(file) && index < length);
+
+        rd.eachFileFilterSync(`${path}`, /\w+\.\w+$/, file => files.push(file));
 
         return files;
     }
@@ -44,7 +78,8 @@ class Analyze {
     getPositionText() {
         let text = '';
         let lastText = '';
-        const re = /([\w\$]+\s*[\.\/]\s*)+[\w\$]+/g;
+        const re = /([\w\$]+\s*[\.\-\/]\s*)*[\w\$]+/g;
+
         const { character } = this.position;
         const lineText = this.getPositionLine();
         //const lineText = linStr.replace(/\//g, '.');
@@ -60,6 +95,15 @@ class Analyze {
         });
 
         text = text || lastText;
+
+        const nmStr = `(require|from)\\s*\\(\\s*['"]@?${text}['"]\\s*\\)`;
+        const nmRe = new RegExp(nmStr);
+
+        lineText.replace(nmRe, word => {
+            text = word.replace(/.*\(\s*['"]|['"]\s*\).*/g, '');
+            text = ['node_modules', '/', text].join('');
+        });
+
         text = text.replace(/\s/g, '');
 
         return text;
@@ -87,10 +131,13 @@ class Analyze {
         const suffix = `(/${funName})?(\\.${funName}|\\.\\w+)?`;
         const re = new RegExp(`${pathText}${suffix}\$`, 'g');
         const list = [this.filename];
+        let files = this.files;
 
+        if (this.isNodeModules(this.filename)) {
+            files = this.getNodeModuleFiles();
+        }
 
-
-        path && this.files.forEach(file => {
+        path && files.forEach(file => {
             const text = file.replace(/_[a-z]/g, word => word.slice(1).toUpperCase());
 
             if (re.test(text) || re.test(file)) {
@@ -98,6 +145,10 @@ class Analyze {
             }
 
         });
+
+        if (!funName && this.isNodeModules(path)) {
+            list.push([this.rootPath, '/', path, '/', 'package.json'].join(''));
+        }
 
         return {
             list,
@@ -144,47 +195,63 @@ class Analyze {
                 break;
             }
 
-            await workspace
-                .openTextDocument(Uri.file(filePath))
-                .then(doc => {
-                    if (!doc) {
-                        return;
-                    }
+            try {
+                await workspace
+                    .openTextDocument(Uri.file(filePath))
+                    .then(doc => {
+                        if (!doc) {
+                            return;
+                        }
 
-                    const isFile = re.test(filePath);
+                        if (this.isPackageJson(filePath)) {
+                            const packge = JSON.parse(doc.getText());
+                            const main = packge.main || 'index.js';
+                            const nmPath = filePath.replace('package.json', main);
 
-                    if (isFile) {
-                        fileList.push({ doc });
-                        return;
-                    }
+                            fileList.push({ path: nmPath });
+                            return;
+                        }
 
-                    if (!funName) {
-                        return;
-                    }
+                        const isFile = re.test(filePath);
 
-                    const text = doc.getText();
-                    const name = funName.replace(/(\$)/g, '\\$');
-                    const funReText = `\\b${name}\\b\\s*=?\\s*(async\\s*)?(function\\s+\\*?\\s*\\([^\\)]*\\)|\\([^\\)]*\\)|\\w+)(\\s*=>)?\\s*{|function\\s*\\*?\\s+${name}\\s*\\([^\\)]*\\)\\s*{`;
-                    const funIndex = text.split(new RegExp(funReText))[0].length;
+                        if (isFile) {
+                            fileList.push({ doc });
+                            return;
+                        }
 
-                    if (funIndex === text.length) {
-                        return;
-                    }
+                        if (!funName) {
+                            return;
+                        }
 
-                    //funIndex = funIndex + 1;
+                        const text = doc.getText();
+                        const name = funName.replace(/(\$)/g, '\\$');
 
-                    const nameStart = doc.positionAt(funIndex);
-                    const nameEnd = doc.positionAt(funIndex + funName.length);
-                    const nameRange = new vscode.Range(nameStart, nameEnd);
+                        const funReText = [
+                            `\\b${name}\\b\\s*=?\\s*(async\\s*)?`,
+                            `(function\\s*\\*?\\s*\\([^\\)]*\\)|\\([^\\)]*\\)|\\w+)(\\s*=>)?`,
+                            `\\s*{|function\\s*\\*?\\s+${name}\\s*\\([^\\)]*\\)\\s*{`
+                        ].join('');
 
-                    const defineStart = doc.positionAt(text.lastIndexOf('}', funIndex));
-                    const defineEnd = doc.positionAt(text.indexOf('\n\n', funIndex));
-                    const defineRange = new vscode.Range(defineStart, defineEnd);
-                    const defineText = doc.getText(defineRange);
+                        const funIndex = text.split(new RegExp(funReText))[0].length;
 
-                    codeList.push({ doc, nameRange, defineText });
-                });
+                        if (funIndex === text.length) {
+                            return;
+                        }
 
+                        //funIndex = funIndex + 1;
+
+                        const nameStart = doc.positionAt(funIndex);
+                        const nameEnd = doc.positionAt(funIndex + funName.length);
+                        const nameRange = new vscode.Range(nameStart, nameEnd);
+
+                        const defineStart = doc.positionAt(text.lastIndexOf('}', funIndex));
+                        const defineEnd = doc.positionAt(text.indexOf('\n\n', funIndex));
+                        const defineRange = new vscode.Range(defineStart, defineEnd);
+                        const defineText = doc.getText(defineRange);
+
+                        codeList.push({ doc, nameRange, defineText });
+                    });
+            } catch (e) { }
         }
 
         return {
@@ -206,9 +273,18 @@ class Analyze {
 
     toFile(fileProps) {
         const { vscode } = this;
-        const { doc } = fileProps;
+        const { workspace, Uri } = vscode;
+        const { doc, path } = fileProps;
 
-        doc && vscode.window.showTextDocument(doc, { preview: false });
+        if (doc) {
+            vscode.window.showTextDocument(doc, { preview: false });
+        } else if (path) {
+            workspace
+                .openTextDocument(Uri.file(path))
+                .then(doc => {
+                    vscode.window.showTextDocument(doc, { preview: false });
+                });
+        }
     }
 }
 
