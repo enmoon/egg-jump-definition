@@ -5,11 +5,14 @@ class Analyze {
         this.vscode = vscode;
 
         this.files = this.getFiles();
-        
+        this.weighting = '';
+
         setInterval(() => {
             this.files = this.getFiles();
         }, 30 * 60 * 1000);
     }
+
+
 
     get document() {
         return this.vscode.window.activeTextEditor.document;
@@ -28,7 +31,7 @@ class Analyze {
     }
 
     get rootPath() {
-        return this.filename.replace(/\/app\/.*/g, '');
+        return this.vscode.workspace.rootPath;
     }
 
     isNodeModules(path) {
@@ -104,6 +107,13 @@ class Analyze {
             text = ['node_modules', '/', text].join('');
         });
 
+        const viewStr = `(render|redirect)\\s*\\(\\s*['"]\/?${text}['"]\\s*\\)`;
+        const viewRe = new RegExp(viewStr);
+
+        lineText.replace(viewRe, word => {
+            this.weighting = 'view';
+        });
+
         text = text.replace(/\s/g, '');
 
         return text;
@@ -124,16 +134,18 @@ class Analyze {
     getPathProps() {
         const props = this.getTextProps();
         const { path, funName } = props;
-        const constantRe = /\b(this|ctx|app)\b\/?/g;
+        const constantRe = /^\w+[\.\/]|\b(this|ctx|app)\b\/?/g;
         const pathText = path.replace(constantRe, word => {
             return `(${word})?`;
         });
-        const suffix = `(/${funName})?(\\.${funName}|\\.\\w+)?`;
-        const re = new RegExp(`${pathText}${suffix}\$`, 'g');
-        const list = [this.filename];
+        const suffix = `(/${funName})?(/index)?(\\.${funName}|\\.\\w+)?`;
+        const re = new RegExp(`${pathText}${suffix}\$`, 'gi');
+        const len = path.split(/\.|\//g).length;
+        const currentPath = this.filename;
+        let list = [];
         let files = this.files;
 
-        if (this.isNodeModules(this.filename)) {
+        if (this.isNodeModules(this.filename) && !this.isNodeModules(path)) {
             files = this.getNodeModuleFiles();
         }
 
@@ -148,6 +160,28 @@ class Analyze {
 
         if (!funName && this.isNodeModules(path)) {
             list.push([this.rootPath, '/', path, '/', 'package.json'].join(''));
+        }
+
+        if (len >= 2) {
+            list.push(currentPath);
+        } else {
+            list.unshift(currentPath);
+        }
+
+        if (this.weighting) {
+            const high = [];
+            const ordinary = [];
+            const wtRe = new RegExp(`\\b${this.weighting}\\b`, 'gi');
+
+            list.forEach(filename => {
+                if (wtRe.test(filename)) {
+                    high.push(filename);
+                } else {
+                    ordinary.push(filename);
+                }
+
+                list = high.concat(ordinary);
+            });
         }
 
         return {
@@ -180,9 +214,10 @@ class Analyze {
         const { workspace, Uri } = vscode;
         const { list, path, funName } = this.getPathProps();
         //const re = new RegExp([path, '/', funName, '(\\.\\w+)\?$'].join(''), 'g');
-        const re = new RegExp(`${path}(\\.${funName}|/${funName}\\.\\w+)`, 'g');
-        const codeList = [];
-        const fileList = [];
+        const re = new RegExp(`${path}(/index)?(\\.${funName}|/${funName}\\.\\w+)`, 'g');
+        let codeList = [];
+        let fileList = [];
+        let mayList = [];
 
         if (list.length === 0) {
             console.log('filePath is undefind!');
@@ -235,6 +270,19 @@ class Analyze {
                         const funIndex = text.split(new RegExp(funReText))[0].length;
 
                         if (funIndex === text.length) {
+                            const pathText = path.replace(/\b(this|ctx|app)\b\/?/g, '');
+                            const pathList = pathText.split('/');
+
+                            if (pathList.length > 1) {
+                                const filePathText = filePath.replace(/_|-/g, '');
+                                const ptRe = new RegExp(['\\b', pathText, '(\\.\\w+)?$'].join(''), 'gi');
+
+                                if (ptRe.test(filePathText)) {
+                                    mayList.push({ doc });
+                                    return;
+                                }
+                            }
+
                             return;
                         }
 
@@ -252,6 +300,10 @@ class Analyze {
                         codeList.push({ doc, nameRange, defineText });
                     });
             } catch (e) { }
+        }
+
+        if (codeList.concat(fileList).length === 0) {
+            fileList = mayList;
         }
 
         return {

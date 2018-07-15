@@ -90,6 +90,12 @@ function eachFileSync(dir, findOne) {
 
     // 遍历子目录
     if (stats.isDirectory()) {
+        const length = dir.split(/\bnode_modules\b/g).length;
+
+        if (length > 2) {
+            return;
+        }
+
         var files = fullPath(dir, fs.readdirSync(dir));
 
         files.forEach(function (f) {
